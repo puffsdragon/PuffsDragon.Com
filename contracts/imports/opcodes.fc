@@ -1,0 +1,4 @@
+int op::dayly_check_in()asm "20001 PUSHINT";
+int op::purchase_package() asm "20002 PUSHINT";
+int op::upgrade() asm "20003 PUSHINT";
+int op::admin_withdraw() asm "20004 PUSHINT";

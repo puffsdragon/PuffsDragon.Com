@@ -1,0 +1,107 @@
+#include "imports/stdlib.fc";
+#include "imports/constants.fc";
+#include "imports/errors.fc";
+#include "imports/opcodes.fc";
+
+global slice task::controller;
+global int task::total_checkin;
+global int task::last_id_checkin;
+global cell task::last_bill_checkin;
+global int task::total_purchase;
+global int task::last_id_purchase;
+global cell task::last_bill_purchase;
+
+() load_data() impure inline {
+    slice ds = get_data().begin_parse();
+
+    task::controller = ds~load_msg_addr();
+
+    task::total_checkin = ds~load_uint(64);
+    task::last_id_checkin = ds~load_uint(64);
+    task::last_bill_checkin = ds~load_ref();
+
+    task::total_purchase = ds~load_uint(64);
+    task::last_id_purchase = ds~load_uint(64);
+    task::last_bill_purchase = ds~load_ref();
+}
+
+() save_data() impure inline {
+    set_data(begin_cell()
+            .store_slice(task::controller)
+            .store_uint(task::total_checkin, 64)
+            .store_uint(task::last_id_checkin, 64)
+            .store_ref(task::last_bill_checkin)
+            .store_uint(task::total_purchase, 64)
+            .store_uint(task::last_id_purchase, 64)
+            .store_ref(task::last_bill_purchase)
+            .end_cell());
+}
+
+
+() transfer_native(slice to_address, int amount, cell master_msg) impure {
+    send_raw_message(
+        begin_cell()
+            .store_uint(0x18, 6)
+            .store_slice(to_address)
+            .store_coins(amount)
+            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+            .store_ref(master_msg)
+            .end_cell(),
+        3);
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if (in_msg_body.slice_empty?()) { ;; ignore empty messages
+        return ();
+    }
+
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    slice sender_address = cs~load_msg_addr();
+
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    load_data();
+
+    if (op == op::dayly_check_in()){
+        task::total_checkin += 1;
+        task::last_id_checkin = in_msg_body~load_uint(64);
+        task::last_bill_checkin = in_msg_body~load_ref();
+        save_data();
+        return ();
+    }
+
+    if (op == op::purchase_package()){
+        task::total_purchase += 1;
+        task::last_id_purchase = in_msg_body~load_uint(64);
+        task::last_bill_purchase = in_msg_body~load_ref();
+        save_data();
+        return ();
+    }
+
+    if (op == op::upgrade()) {
+        ;; Only controller can upgrade the contract
+        throw_unless(error::invalid_sender, equal_slices(task::controller, sender_address));
+        cell new_code = in_msg_body~load_ref();
+        set_code(new_code);
+        return ();
+    }
+
+    if (op == op::admin_withdraw()) {
+        slice toAddr = in_msg_body~load_msg_addr();
+        int amount = in_msg_body~load_uint(64);
+        throw_unless(error::invalid_sender, equal_slices(sender_address, task::controller));
+        transfer_native(toAddr, amount, begin_cell().end_cell());
+        return ();
+    }
+
+    throw(error::invalid_op);
+}
+
+;; ============================= getters =============================
+
+(slice, int, int, cell, int, int, cell) get_global_data() method_id {
+    load_data();
+    return (task::controller, task::total_checkin, task::last_id_checkin, task::last_bill_checkin, task::total_purchase, task::last_id_purchase, task::last_bill_purchase);
+}

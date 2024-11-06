@@ -1,0 +1,35 @@
+#include "./imports/stdlib.fc";
+
+global slice task::controller;
+global int task::total_checkin;
+global int task::last_id_checkin;
+global cell task::last_bill_checkin;
+global int task::total_purchase;
+global int task::last_id_purchase;
+global cell task::last_bill_purchase;
+
+() load_data() inline {
+    slice ds = get_data().begin_parse();
+
+    task::controller = ds~load_msg_addr();
+
+    task::total_checkin = ds~load_uint(64);
+    task::last_id_checkin = ds~load_uint(64);
+    task::last_bill_checkin = ds~load_ref();
+
+    task::total_purchase = ds~load_uint(64);
+    task::last_id_purchase = ds~load_uint(64);
+    task::last_bill_purchase = ds~load_ref();
+}
+
+() save_data() impure inline {
+    set_data(begin_cell()
+            .store_slice(task::controller)
+            .store_uint(task::total_checkin, 64)
+            .store_uint(task::last_id_checkin, 64)
+            .store_ref(task::last_bill_checkin)
+            .store_uint(task::total_purchase, 64)
+            .store_uint(task::last_id_purchase, 64)
+            .store_ref(task::last_bill_purchase)
+            .end_cell());
+}

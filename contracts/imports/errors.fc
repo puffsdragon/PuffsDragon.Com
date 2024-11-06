@@ -1,0 +1,2 @@
+const error::invalid_op = 0xffff;       ;; op is not supported
+const error::invalid_sender = 5001;      ;; invalid sender
